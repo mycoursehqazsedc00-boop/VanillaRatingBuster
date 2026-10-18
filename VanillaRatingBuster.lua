@@ -89,8 +89,16 @@ function VRBCalculateRating(weightTable, bonuses)
 end
 
 
-VRBItemScoreTooltip = CreateFrame( "Frame" , "VRBItemScoreTooltip", GameTooltip )
-VRBItemScoreTooltip:SetScript("OnShow", function (self)
+-- Trigger mechanism rewritten from the original's "child frame of
+-- GameTooltip, relying on OnShow" approach. That relies on GameTooltip's
+-- OnShow firing only once everything is fully populated, but Blizzard's
+-- SetInventoryItem/SetBagItem can call :Show() before all stat lines are
+-- added, so the child's OnShow sometimes fired on an incomplete tooltip --
+-- scanning found nothing, so no score ever showed, even though the scan
+-- logic itself was correct. Hooking the population functions directly
+-- (same technique BetterCharacterPanel's gear-score tooltip line uses)
+-- guarantees this runs only after the real one has fully returned.
+function VRBOnTooltipItem()
     local itemLevel = nil
     local itemRarity = nil
     local itemSlot = nil
@@ -120,11 +128,22 @@ VRBItemScoreTooltip:SetScript("OnShow", function (self)
     end
 
     if itemLink then
+      -- GetItemInfo returns nil on a cache miss (the item hasn't been seen
+      -- by the client yet), which is common for bag items and anything you
+      -- haven't recently inspected elsewhere. When that happens we don't
+      -- know the item's slot -- fail OPEN (show the score, matching the
+      -- original unfiltered behavior) rather than closed, since treating
+      -- "unknown" as "definitely not equipment" would hide scores on
+      -- ordinary gear far more often than it correctly filters out a
+      -- genuine non-equipment item.
       local okInfo, _, _, _, _, _, _, _, _, equipLoc = pcall(GetItemInfo, itemLink)
-      itemSlot = okInfo and equipLoc or nil
 
-      if not (itemSlot and VRBCheckItemType(itemSlot)) then
-        return
+      if okInfo and equipLoc then
+        itemSlot = equipLoc
+
+        if not VRBCheckItemType(itemSlot) then
+          return
+        end
       end
     end
 
@@ -158,7 +177,6 @@ VRBItemScoreTooltip:SetScript("OnShow", function (self)
           vrbscore = VRBCalculateRating(r, bonuses)
           if vrbscore > 0 then
             normalizedLabel = string.gsub(r, className, "")
-            -- GameTooltip:AddLine(normalizedLabel .. ": " .. vrbscore, color.r, color.g, color.b)
             GameTooltip:AddDoubleLine(normalizedLabel .. ": ", vrbscore , color.r, color.g, color.b, color.r, color.g, color.b)
             hasScoreToShow = true
           end
@@ -172,7 +190,22 @@ VRBItemScoreTooltip:SetScript("OnShow", function (self)
 
     end
 
-  end)
+end
+
+
+local VRB_PreviousSetInventoryItem = GameTooltip.SetInventoryItem
+GameTooltip.SetInventoryItem = function(self, unit, slot)
+    local result = VRB_PreviousSetInventoryItem(self, unit, slot)
+    VRBOnTooltipItem()
+    return result
+end
+
+local VRB_PreviousSetBagItem = GameTooltip.SetBagItem
+GameTooltip.SetBagItem = function(self, bag, slot)
+    local result = VRB_PreviousSetBagItem(self, bag, slot)
+    VRBOnTooltipItem()
+    return result
+end
 
 
 SLASH_VRBSCORE1, SLASH_VRBSCORE2 = '/vrb';

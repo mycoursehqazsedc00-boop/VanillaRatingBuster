@@ -41,6 +41,7 @@ Nothing else in this addon, or in the `BCSItemScan` module it now depends on, us
 | Dependency | Required a separate `BonusScanner` addon folder (itself a modified copy, since upstream BonusScanner only scans "bonus" armor and ignores an item's base armor value, which tanking ratings need) | Depends on `BetterCharacterStats` instead. Its tooltip-parsing engine is ported in as `BCSItemScan`, keeping the same armor fix, so nothing is lost by dropping BonusScanner |
 | Item-type filtering | `scoredItemTypes` and `VRBCheckItemType` existed but were never called from anywhere — every tooltip with any recognizable stat text got a rating, including consumables and quest items whose flavor text happened to look like a stat line | Wired up for real. Also: `scoredItemTypes` compared `GetItemInfo`'s raw equip-location enum (e.g. `"INVTYPE_HEAD"`) against *localized display labels* (`"Head"`) — these never matched, so this filter, unused as it was, would have rejected every item the moment anyone turned it on. Fixed to compare the raw enum directly. This also exposed a second gap: only `INVTYPE_RANGED` (Bows) was listed; `INVTYPE_RANGEDRIGHT` (Wands, Guns, and Crossbows on this pre-2.4.3 client) was missing entirely and is now included |
 | `GetItemInfo` unpacking | An off-by-one meant the code that reads an item's equip-location was actually reading its stack count instead | Fixed |
+| Scores sometimes not appearing at all | Relied on a child frame of `GameTooltip` firing `OnShow` once the tooltip was visible — but Blizzard's `SetInventoryItem`/`SetBagItem` can call `:Show()` before every stat line is actually added, so the child's `OnShow` could fire on a still-incomplete tooltip, finding nothing to score | Hooks `GameTooltip.SetInventoryItem` and `GameTooltip.SetBagItem` directly instead (same technique BetterCharacterPanel's gear-score tooltip line uses), running only after the real population call has fully returned. Verified safe alongside BetterCharacterPanel's own hook on the same function — both compose correctly regardless of load order |
 
 ### How the dependency swap works
 
@@ -48,7 +49,7 @@ Nothing else in this addon, or in the `BCSItemScan` module it now depends on, us
 
 ### Status
 
-Tested with a full simulated hover-to-score flow (equip gear → hover an item → confirm the exact rating shown), not a live client. The item-type fix was specifically verified to both let real equipment through and correctly reject a non-equipment item with coincidentally stat-like tooltip text. The no-ClassicAPI fallback path was also verified: without it, scoring still works exactly as the original did, just without the equipment-type filter.
+Tested with a full simulated hover-to-score flow (equip gear → hover an item → confirm the exact rating shown), not a live client. The item-type fix was specifically verified to both let real equipment through and correctly reject a non-equipment item with coincidentally stat-like tooltip text. The no-ClassicAPI fallback path was also verified: without it, scoring still works exactly as the original did, just without the equipment-type filter. The tooltip-hook rewrite was verified both on its own and alongside BetterCharacterPanel's gear-score hook on the same function, confirming they compose correctly together regardless of load order.
 
 ## FAQ
 
