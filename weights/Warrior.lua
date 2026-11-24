@@ -1,5 +1,4 @@
--- weights/Warrior.lua
-DEFAULT_CHAT_FRAME:AddMessage("SUCCESS: The game is reading Warrior.lua!")
+-- weights/Warrior.lua (legacy reference; active weights are in VanillaRatingBusterWeights.lua)
 
 
 VRB_LABELS["Warrior"] = { "WarriorThreat-EP", "WarriorMitigation-EP", "WarriorFury-EP" }

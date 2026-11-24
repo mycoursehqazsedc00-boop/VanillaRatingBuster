@@ -3,7 +3,9 @@
 ## Author: ZephZae - continued from Kylosandrax, 2017
 ## Dependencies: BetterCharacterStats
 ## Notes: Displays ratings for items in tooltips based on stat weights
-## Version: 0.2
+## Version: 0.3
+## SavedVariables: VanillaRatingBusterDB
 
 VanillaRatingBuster.lua
-VanillaRatingBusterWeights.lua
+VanillaRatingBusterWeights.lua
+VanillaRatingBusterUI.lua
