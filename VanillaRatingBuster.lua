@@ -280,11 +280,21 @@ local function VRB_ScanEquippedSlotScores(slotName, ratings, ignoreEnchants, out
     for _, r in ipairs(ratings) do
       outScores[r] = cached.scores[r] or 0
     end
-    return cached.hasItem
+    return true, cached.hasItem
   end
 
   for _, r in ipairs(ratings) do
     outScores[r] = 0
+  end
+
+  if eqLink == "" then
+    VRB_EquippedScoreCache[slotName] = {
+      link = eqLink,
+      ignoreEnchants = ignoreFlag,
+      hasItem = false,
+      scores = {},
+    }
+    return true, false
   end
 
   -- Zero-duplication fast path: reuse per-slot equipped bonuses already scanned by BCSItemScan
@@ -311,31 +321,23 @@ local function VRB_ScanEquippedSlotScores(slotName, ratings, ignoreEnchants, out
         hasItem = true,
         scores = cachedScores,
       }
-      return true
+      return true, true
     end
   end
 
+  VRBCompareTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
   VRBCompareTooltip:ClearLines()
   local okHas, hasItem = pcall(VRBCompareTooltip.SetInventoryItem, VRBCompareTooltip, "player", slotId)
-  if not okHas or not hasItem then
-    VRB_EquippedScoreCache[slotName] = {
-      link = eqLink,
-      ignoreEnchants = ignoreFlag,
-      hasItem = false,
-      scores = {},
-    }
-    return false
+  local lines = (okHas and hasItem) and VRBCompareTooltip:NumLines() or 0
+  if (not lines or lines < 2) and eqLink ~= "" then
+    local _, _, itemQuery = string.find(eqLink, "(item:%d+[^|]*)")
+    VRBCompareTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+    VRBCompareTooltip:ClearLines()
+    pcall(VRBCompareTooltip.SetHyperlink, VRBCompareTooltip, itemQuery or eqLink)
+    lines = VRBCompareTooltip:NumLines() or 0
   end
-
-  local lines = VRBCompareTooltip:NumLines()
   if not lines or lines < 2 then
-    VRB_EquippedScoreCache[slotName] = {
-      link = eqLink,
-      ignoreEnchants = ignoreFlag,
-      hasItem = false,
-      scores = {},
-    }
-    return false
+    return false, false
   end
 
   local eqBonuses
@@ -378,7 +380,7 @@ local function VRB_ScanEquippedSlotScores(slotName, ratings, ignoreEnchants, out
     hasItem = true,
     scores = cachedScores,
   }
-  return true
+  return true, true
 end
 
 local function VRB_GetBaselineScores(itemSlot, ratings, ignoreEnchants, outScores)
@@ -388,12 +390,15 @@ local function VRB_GetBaselineScores(itemSlot, ratings, ignoreEnchants, outScore
   end
 
   if table.getn(slots) == 1 then
-    VRB_ScanEquippedSlotScores(slots[1], ratings, ignoreEnchants, outScores)
-    return true
+    local ok = VRB_ScanEquippedSlotScores(slots[1], ratings, ignoreEnchants, outScores)
+    return ok
   end
 
-  local hasA = VRB_ScanEquippedSlotScores(slots[1], ratings, ignoreEnchants, VRB_SlotScoresA)
-  local hasB = VRB_ScanEquippedSlotScores(slots[2], ratings, ignoreEnchants, VRB_SlotScoresB)
+  local okA, hasA = VRB_ScanEquippedSlotScores(slots[1], ratings, ignoreEnchants, VRB_SlotScoresA)
+  local okB, hasB = VRB_ScanEquippedSlotScores(slots[2], ratings, ignoreEnchants, VRB_SlotScoresB)
+  if not okA or not okB then
+    return false
+  end
 
   if itemSlot == "INVTYPE_2HWEAPON" then
     for _, r in ipairs(ratings) do
